@@ -1,0 +1,3 @@
+- pipeline.id: csv_ingest
+  path.config: "/home/g4/logstash-9.2.0/config/importar_csv.conf"
+  pipeline.workers: 1
