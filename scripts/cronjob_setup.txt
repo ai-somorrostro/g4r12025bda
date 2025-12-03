@@ -1,0 +1,11 @@
+# Configuración de Tarea Programada (Cron Job)
+# Objetivo: Ejecutar el scraper de novedades cada lunes a las 09:00 AM.
+
+# 1. Abrir editor:
+# crontab -e
+
+# 2. Añadir la siguiente línea:
+0 9 * * 1 /usr/bin/python3 /home/g4/scripts/scraper_semanal.py >> /home/g4/scripts/logs_cron.txt 2>&1
+
+# Explicación:
+# 0 9 * * 1  -> Minuto 0, Hora 9, Cualquier día del mes, Cualquier mes, Día de la semana 1 (Lunes)
