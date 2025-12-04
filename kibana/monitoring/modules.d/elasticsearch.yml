@@ -1,0 +1,9 @@
+- module: elasticsearch
+  xpack.enabled: true
+  period: 10s
+  hosts: ["https://192.199.1.38:9200", "https://192.199.1.40:9200", "https://192.199.1.54:9200"]
+  username: "elastic"
+  password: "NVXTjg51rlb69J2euNbB"
+  ssl.enabled: true
+  ssl.verification_mode: none
+  scope: cluster
