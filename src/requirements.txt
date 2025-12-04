@@ -1,7 +1,0 @@
-streamlit
-elasticsearch
-openai
-python-dotenv
-sentence-transformers
-requests
-pandas
