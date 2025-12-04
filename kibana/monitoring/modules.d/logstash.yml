@@ -1,0 +1,7 @@
+# Module: logstash
+# Docs: https://www.elastic.co/guide/en/beats/metricbeat/main/metricbeat-module-logstash.html
+
+- module: logstash
+  xpack.enabled: true
+  period: 10s
+  hosts: ["http://192.199.1.40:9600"]
