@@ -8,64 +8,86 @@ from dotenv import load_dotenv
 from elasticsearch import Elasticsearch
 from sentence_transformers import SentenceTransformer
 
-# --- 1. CONFIGURACIÓN ---
+# ==========================================
+#   1. CONFIGURACIÓN
+# ==========================================
 load_dotenv()
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-st.set_page_config(page_title="CineBot Todoterreno", page_icon="🤠", layout="centered")
+st.set_page_config(page_title="CineBot IA", page_icon="🤖", layout="centered")
 
 if not TMDB_API_KEY or not OPENROUTER_API_KEY:
-    st.error("❌ Faltan claves API.")
+    st.error("❌ Faltan claves API en el archivo .env")
     st.stop()
 
-# --- 2. BARRA LATERAL (POLÍTICAS Y LEGAL) ---
-with st.sidebar:
-    st.image("https://www.themoviedb.org/assets/2/v4/logos/v2/blue_square_2-d537fb228cf3ed904152326207195c357471de445699156318427438ea96f33d.svg", width=100)
-    st.markdown("### CineBot Híbrido")
-    st.info("Inteligencia Artificial conectada a TMDb (Internet) y Memoria Local (Elasticsearch).")
-    
-    st.markdown("---")
-    st.caption("⚖️ **Aviso Legal y Ético:**")
-    st.caption("1. **Precisión:** La IA puede alucinar. Verifica datos críticos.")
-    st.caption("2. **Atribución:** Este producto usa la API de TMDb pero no está avalado por TMDb.")
-    st.caption("3. **Privacidad:** No compartas datos personales.")
-    st.markdown("---")
-    
-    if st.button("🗑️ Borrar Historial"):
-        st.session_state.messages = []
-        st.rerun()
+# ==========================================
+#   2. CONEXIONES
+# ==========================================
 
-# --- 3. CONEXIONES ---
+# A. Cliente LLM
 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
-MODEL_NAME = "meta-llama/llama-3.3-70b-instruct"
+CHAT_MODEL = "meta-llama/llama-3.3-70b-instruct:"
 
-# Conexión a Elastic (Local)
+# B. Cliente Elastic (Conexión a los 3 nodos)
 try:
     es = Elasticsearch(
-        "https://192.199.1.40:9200",
-        basic_auth=("elastic", "NVXTjg51rlb69J2euNbB"), 
-        ca_certs="/home/g4/logstash-9.2.0/config/http_ca.crt"
+        ["https://192.199.1.38:9200", "https://192.199.1.40:9200", "https://192.199.1.54:9200"],
+        api_key=("4Etb6JoBHk-0Ge2TdtLz", "Ag2-mARBGEkGIpcHhBDoOQ"), 
+        ca_certs="/home/g4/logstash-9.2.0/config/http_ca.crt",
+        request_timeout=30
     )
-except: pass
+except Exception as e:
+    st.error(f"Error conectando a Elastic: {e}")
 
-# Modelo de Embeddings
+# C. Modelo de Embeddings (ACTUALIZADO A 768 DIMS)
 @st.cache_resource
 def load_embedding_model():
-    return SentenceTransformer('all-MiniLM-L6-v2')
+    # Este modelo genera vectores de 768 dimensiones, coincidiendo con tu índice nuevo
+    return SentenceTransformer('sentence-transformers/paraphrase-multilingual-mpnet-base-v2')
 
 try: embedding_model = load_embedding_model()
 except: pass
 
-# --- 4. MAPA DE GÉNEROS ---
+# --- 2. BARRA LATERAL (POLÍTICAS Y LEGAL) ---
+
+with st.sidebar:
+
+
+    st.markdown("### CineBot Híbrido")
+
+    st.info("Inteligencia Artificial conectada a TMDb (Internet) y Memoria Local (Elasticsearch).")
+
+    
+
+    st.markdown("---")
+
+    st.caption("⚖️ **Aviso Legal y Ético:**")
+
+    st.caption("1. **Precisión:** La IA puede alucinar. Verifica datos críticos.")
+
+    st.caption("2. **Atribución:** Este producto usa la API de TMDb pero no está avalado por TMDb.")
+
+    st.caption("3. **Privacidad:** No compartas datos personales.")
+
+    st.markdown("---")
+
+    
+
+    if st.button("🗑️ Borrar Historial"):
+
+        st.session_state.messages = []
+
+        st.rerun()
+
+# ==========================================
+#   3. HERRAMIENTAS (TOOLS)
+# ==========================================
+
 GENRES_MAP = {
     "Action": 28, "Adventure": 12, "Animation": 16, "Comedy": 35, "Crime": 80,
-    "Documentary": 99, "Drama": 18, "Family": 10751, "Fantasy": 14, "History": 36,
-    "Horror": 27, "Music": 10402, "Mystery": 9648, "Romance": 10749,
-    "Sci-Fi": 878, "Thriller": 53, "War": 10752, "Western": 37
+    "Documentary": 99, "Drama": 18, "Horror": 27, "Sci-Fi": 878, "Romance": 10749
 }
-
-# --- 5. HERRAMIENTAS ---
 
 def api_search_movie(titulo):
     """Busca título exacto en TMDb."""
@@ -73,68 +95,95 @@ def api_search_movie(titulo):
     try:
         data = requests.get(url).json().get("results", [])[:1]
         if data:
-            return {
-                "source": "API TMDb",
-                "title": data[0]["title"], 
-                "overview": data[0]["overview"],
-                "date": data[0].get("release_date")
-            }
+            return f"TÍTULO: {data[0]['title']} | SINOPSIS: {data[0]['overview']} | FECHA: {data[0].get('release_date', 'N/A')}"
         return "No encontrada."
     except Exception as e: return f"Error API: {e}"
 
 def api_discover_movies(genre_id=None, year=None):
-    """Filtra películas por género y año."""
+    """Filtra en TMDb."""
     url = f"https://api.themoviedb.org/3/discover/movie?api_key={TMDB_API_KEY}&language=es-ES&sort_by=popularity.desc"
-    
     if genre_id: url += f"&with_genres={genre_id}"
     if year: url += f"&primary_release_year={year}"
-        
     try:
         data = requests.get(url).json().get("results", [])[:5]
-        if not data: return "No se encontraron películas con esos filtros."
-        
-        # Formateamos la respuesta para que la IA la entienda fácil
         return [f"- {m['title']} ({m.get('release_date','')[:4]}): {m['overview'][:100]}..." for m in data]
     except Exception as e: return f"Error API Discover: {e}"
 
-def elastic_semantic_search(concepto):
-    """Búsqueda vectorial local."""
+def elastic_text_search(concepto):
+    """Búsqueda de Texto (BM25) en peliculas-csv."""
     try:
-        vector = embedding_model.encode(concepto)
         resp = es.search(
-            index="peliculas-embeddings",
-            knn={"field": "vector_sinopsis", "query_vector": vector, "k": 3, "num_candidates": 50}
+            index="peliculas-csv", 
+            query={
+                "multi_match": {
+                    "query": concepto,
+                    "fields": ["overview^3", "title", "genre_names"],
+                    "fuzziness": "AUTO"
+                }
+            },
+            size=5
         )
         results = []
         for hit in resp['hits']['hits']:
-            results.append(f"{hit['_source'].get('title')} (Local)")
-        return results if results else "Sin coincidencias locales."
-    except: return "Error Elastic (Índice no disponible)."
+            src = hit['_source']
+            results.append(f"{src.get('title')} (Sinopsis: {src.get('overview')[:200]}...)")
+        return results if results else "No encontré películas con esa trama en el catálogo local."
+    except Exception as e: 
+        return f"Error técnico buscando trama: {e}"
+
+def search_script(frase):
+    """
+    Búsqueda Vectorial (768 dims) en Guiones.
+    """
+    try:
+        # Generar vector de 768 dimensiones
+        vector = embedding_model.encode(frase)
+        
+        resp = es.search(
+            index="guiones-chunks",
+            knn={
+                "field": "vector", 
+                "query_vector": vector, 
+                "k": 3, 
+                "num_candidates": 50
+            }
+        )
+        results = []
+        for h in resp['hits']['hits']:
+            src = h['_source']
+            if h['_score'] > 0.3: # Filtro de calidad
+                results.append(f"PELÍCULA: {src['title']}\nGUION (EN): ...{src['chunk_text']}...")
+            
+        return "\n\n".join(results) if results else "No encontré ese diálogo exacto."
+    except Exception as e: 
+        st.sidebar.error(f"Error Guiones: {e}")
+        return f"Error técnico buscando guiones: {str(e)}"
 
 tools = {
     "api_search_movie": api_search_movie,
     "api_discover_movies": api_discover_movies,
-    "elastic_semantic_search": elastic_semantic_search
+    "elastic_text_search": elastic_text_search,
+    "search_script": search_script
 }
 
-# --- 6. SYSTEM PROMPT ---
+# ==========================================
+#   4. SYSTEM PROMPT
+# ==========================================
 SYSTEM_PROMPT = f"""
-Eres CineBot. Usa las herramientas para responder.
+Eres CineBot. Usa tus herramientas inteligentemente:
 
-HERRAMIENTAS:
-1. `elastic_semantic_search(concepto)`: Para tramas abstractas ("barco hundido").
-2. `api_search_movie(titulo)`: Para títulos exactos.
-3. `api_discover_movies(genre_id, year)`: Para géneros y años.
+1. `search_script(frase)`: Úsala para buscar DIÁLOGOS, FRASES CÉLEBRES o ESCENAS CONCRETAS.
+   - La base de datos de guiones está en inglés. Traduce el resultado al español para el usuario.
 
-MAPA GÉNEROS: {json.dumps(GENRES_MAP)}
+2. `elastic_text_search(concepto)`: Úsala para buscar películas por TRAMA o SINOPSIS en el catálogo local.
+   
+3. `api_search_movie(titulo)`: Si te dan el TÍTULO exacto y quieren datos oficiales.
 
-SI TE PIDEN "WESTERN DE LOS 80":
-- Western es ID 37.
-- "De los 80" es una década. Elige un año representativo (ej: 1985) o busca sin año si fallas.
-- Llama a: `api_discover_movies(genre_id=37, year=1985)`
+4. `api_discover_movies(genre_id, year)`: Para filtros (Años 80, Terror, etc).
+   - Mapa Géneros: {json.dumps(GENRES_MAP)}
 
-RESPUESTA JSON OBLIGATORIA PARA HERRAMIENTAS:
-{{"tool": "nombre", "parameters": {{"param": "valor"}}}}
+RESPUESTA JSON OBLIGATORIA:
+{{"tool": "nombre_herramienta", "parameters": {{"param": "valor"}}}}
 """
 
 def extract_json(text):
@@ -145,8 +194,10 @@ def extract_json(text):
     except: pass
     return None
 
-# --- 7. INTERFAZ ---
-st.title("CineBot")
+# ==========================================
+#   5. INTERFAZ
+# ==========================================
+st.title("🤖 CineBot IA")
 
 if "messages" not in st.session_state: st.session_state.messages = []
 
@@ -163,20 +214,20 @@ if prompt := st.chat_input("Tu consulta..."):
         history = [{"role": "system", "content": SYSTEM_PROMPT}] + st.session_state.messages
         
         try:
-            with st.spinner("Procesando..."):
+            with st.spinner("Pensando..."):
                 max_loops = 3
                 loop = 0
                 final_msg = ""
                 
                 while loop < max_loops:
                     loop += 1
-                    resp = client.chat.completions.create(model=MODEL_NAME, messages=history, temperature=0.1)
+                    resp = client.chat.completions.create(model=CHAT_MODEL, messages=history, temperature=0.1)
                     content = resp.choices[0].message.content
                     tool_data = extract_json(content)
                     
                     if tool_data:
-                        func = tool_data["tool"]
-                        args = tool_data.get("parameters", {})
+                        func = tool_data.get("tool")
+                        args = tool_data.get("parameters") or {}
                         ph.markdown(f"🔎 *Ejecutando: {func} {args}...*")
                         
                         if func in tools:
@@ -184,16 +235,13 @@ if prompt := st.chat_input("Tu consulta..."):
                             history.append({"role": "assistant", "content": content})
                             history.append({"role": "system", "content": f"DATOS: {json.dumps(res)}"})
                         else:
-                            final_msg = "Error: Intenté usar una herramienta que no existe."
+                            final_msg = "Error: Herramienta desconocida."
                             break
                     else:
                         final_msg = content
                         break
                 
-                # CONTROL DE ERRORES: Si final_msg está vacío, avisamos
-                if not final_msg:
-                    final_msg = "Lo siento, obtuve los datos pero no supe generar una respuesta final. Inténtalo de nuevo."
-
+                if not final_msg: final_msg = "Lo siento, no pude responder."
                 ph.markdown(final_msg)
                 st.session_state.messages.append({"role": "assistant", "content": final_msg})
         except Exception as e:
