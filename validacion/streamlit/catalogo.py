@@ -32,13 +32,10 @@ def update_orden(): st.session_state.memoria_filtros["orden"] = st.session_state
 # --- CONEXIÓN ELASTICSEARCH ---
 try:
     es = Elasticsearch(
-        [
-            "https://192.199.1.38:9200",
-            "https://192.199.1.40:9200", 
-            "https://192.199.1.54:9200"
-        ],
-        api_key=("AAMUxZoBGvoQi4223Qq3", "fY1QZrRCqKZY4F8LsqAWRg"), 
-        ca_certs="/home/g4/logstash-9.2.0/config/http_ca.crt"
+        ["https://127.0.0.1:9200"],
+        basic_auth=("elastic", "NVXTjg51rlb69J2euNbB"),
+        ca_certs="/home/g4/logstash-9.2.0/config/http_ca.crt",
+        verify_certs=False,
     )
 except Exception as e:
     st.error(f"Error crítico: {e}")
