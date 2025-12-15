@@ -1,0 +1,75 @@
+services:
+  # Scrapper service - extrae datos de TMDB
+  scrapper:
+    build:
+      context: ./services/scrapper
+      dockerfile: Dockerfile
+    container_name: tmdb-scrapper
+    volumes:
+      # Mapear data y logs al host para persistencia
+      - ./services/data:/app/data
+      - ./services/logs:/app/logs
+    environment:
+      - TZ=Europe/Madrid
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Servicio Elasticsearch (Requerido para Logstash)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elastic_data:/usr/share/elasticsearch/data
+    networks:
+      - app-network
+
+  # Servicio API - Sirve los datos de películas
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: film-api
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./services/data:/app/data
+      - ./services/api:/app
+      - ./services/logs:/app/logs
+    environment:
+      - TZ=Europe/Madrid
+    depends_on:
+      - scrapper
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # Servicio Logstash
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.12.0
+    container_name: logstash
+    volumes:
+      - ./services/logstash/pipeline:/usr/share/logstash/pipeline
+    ports:
+      - "8000:8000"
+      - "9600:9600"
+    environment:
+      - LS_JAVA_OPTS=-Xmx256m -Xms256m
+    depends_on:
+      - elasticsearch
+      - api
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  elastic_data:
