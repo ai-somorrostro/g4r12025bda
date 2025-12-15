@@ -27,7 +27,7 @@ if not TMDB_API_KEY or not OPENROUTER_API_KEY:
 # ==========================================
 
 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
-CHAT_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
+CHAT_MODEL = "meta-llama/llama-3.3-70b-instruct"
 
 try:
     es = Elasticsearch(
