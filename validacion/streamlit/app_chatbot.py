@@ -31,9 +31,10 @@ CHAT_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 
 try:
     es = Elasticsearch(
-        ["https://192.199.1.38:9200", "https://192.199.1.40:9200", "https://192.199.1.54:9200"],
-        api_key=("4Etb6JoBHk-0Ge2TdtLz", "Ag2-mARBGEkGIpcHhBDoOQ"), 
+        ["https://127.0.0.1:9200"],
+        basic_auth=("elastic", "NVXTjg51rlb69J2euNbB"), 
         ca_certs="/home/g4/logstash-9.2.0/config/http_ca.crt",
+        verify_certs=False,
         request_timeout=30
     )
 except Exception as e:
