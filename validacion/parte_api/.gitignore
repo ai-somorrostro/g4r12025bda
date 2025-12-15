@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Data
+services/data/*.json
+!services/data/.gitkeep
+services/logs/*.log
+!services/logs/.gitkeep
+
+# Elastic/Logstash
+services/logstash/pipeline/*.conf.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temp
+output.txt
+temp_query.json
+
+# Scripts de utilidad
+upload_github.ps1
