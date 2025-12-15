@@ -11,23 +11,19 @@ warnings.simplefilter('ignore', ElasticsearchWarning)
 # Configuración
 PKL_PATH = "/home/g4/streamlit/guiones_vectorizados_768.pkl"
 
-# --- CONEXIÓN ELASTIC (SINGLE NODE) ---
+# --- CONEXIÓN ELASTIC (Usuario/Contraseña) ---
 es = Elasticsearch(
-    # Al ser una sola máquina, apuntamos a localhost
     ["https://127.0.0.1:9200"],
     
-    # Si es la misma instalación que antes pero apagaste los otros nodos, debería servir.
-    api_key=("gWMV35oBc7daF0WmrpBl", "KQuuWHwe-FNUEuSo6ybl7A"), 
-    # basic_auth=("elastic", "TU_CONTRASEÑA"), si quieres con usuario y contraseña
+    # CAMBIO AQUÍ: Usamos basic_auth en vez de api_key
+    basic_auth=("elastic", "TU_CONTRASEÑA"), 
+    
     ca_certs="/home/g4/logstash-9.2.0/config/http_ca.crt",
-    
-    # Si te da error de certificado, descomenta la siguiente línea y comenta 'ca_certs':
-    # verify_certs=False,
-    
+    verify_certs=False, # Descomenta esto si te da error de certificado SSL
     request_timeout=60
 )
 
-print(" Cargando archivo PKL en memoria (esto puede tardar unos segundos)...")
+print(" Cargando archivo PKL en memoria...")
 try:
     with open(PKL_PATH, 'rb') as f:
         datos = pickle.load(f)
@@ -35,9 +31,8 @@ except FileNotFoundError:
     print(f" Error: No encuentro el archivo en {PKL_PATH}")
     sys.exit(1)
 
-print(f"Subiendo {len(datos)} fragmentos a Elasticsearch (Nodo Único)...")
+print(f" Subiendo {len(datos)} fragmentos a Elasticsearch...")
 
-# Preparamos el generador para Bulk
 def generar_acciones():
     for d in datos:
         yield {
@@ -51,7 +46,6 @@ def generar_acciones():
             }
         }
 
-# Subida masiva
 try:
     success, failed = bulk(es, generar_acciones(), chunk_size=500)
     print(f" Subida completada.")
