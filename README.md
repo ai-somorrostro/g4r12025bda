@@ -1,60 +1,62 @@
-# Infraestructura Big Data y Procesamiento
+# PARTE 1: Infraestructura Big Data y Procesamiento (Actualizado)
 
-Este documento detalla la ingeniería de datos, la configuración del clúster distribuido y los pipelines de ingestión.
+Este documento detalla la ingeniería de datos, la configuración del clúster distribuido, la seguridad y los pipelines de ingestión optimizados.
 
-## 1. Arquitectura del Clúster Distribuido
+## 1. Arquitectura del Clúster y Seguridad
 
-Se ha desplegado un clúster de **Elasticsearch** sobre **3 Máquinas Virtuales (Linux)** para garantizar Alta Disponibilidad (HA) y tolerancia a fallos (Quórum 2/3).
+Se ha desplegado un clúster de **Elasticsearch** sobre **3 Máquinas Virtuales** con roles compartidos (*Master, Data, Ingest*) para garantizar Alta Disponibilidad.
 
-| Nodo | IP | Roles | Función Principal |
-| :--- | :--- | :--- | :--- |
-| **VM 1** | `192.199.1.38` | Master, Data, Ingest | Coordinación y Visualización (**Kibana**). |
-| **VM 2** | `192.199.1.40` | Master, Data, Ingest | Procesamiento (**Logstash**) y Aplicación. |
-| **VM 3** | `192.199.1.54` | Master, Data, Ingest | Monitorización (**Metricbeat**). |
+### Seguridad: Gestión Granular de API Keys
+Para cumplir con el principio de mínimo privilegio, se ha eliminado el uso del superusuario `elastic` en los servicios, implementando **IDs y API Keys independientes** para cada componente:
 
-### Configuración de Nodos
-*   **Discovery:** Configurado `discovery.seed_hosts` con las 3 IPs para permitir la formación del clúster.
-*   **Red:** `network.host` configurado a la IP pública de cada VM.
-*   **Seguridad:** `xpack.security` habilitado. Uso de **API Keys** granuladas para sustituir al usuario `elastic`:
-    *   *Key Ingesta:* Solo permisos de escritura e índices (`create`, `write`).
-    *   *Key Lectura:* Solo permisos de búsqueda (`read`).
+*   **🔑 Key `writer_logstash`:** Exclusiva para el pipeline de Logstash. Solo tiene permisos de escritura (`create`, `write`) e indexación sobre `peliculas-csv` y `log-scrapping-*`.
+*   **🔑 Key `reader_streamlit`:** Exclusiva para la aplicación frontend. Solo tiene permisos de lectura (`read`, `search`) sobre los índices de datos.
+*   **🔑 Key `writer_scripts`:** Exclusiva para los scripts de Python que cargan vectores, permitiendo la gestión de índices específicos de IA.
 
 ## 2. Gestión del Dato (Elasticsearch)
 
-### Modelado (Templates)
-Se definió el template `peliculas_csv_template` para estandarizar los índices:
-*   **Replicación:** `number_of_replicas: 2`. Garantiza que **cada dato existe en los 3 nodos**.
-*   **Mapping:** `dynamic: strict` para evitar la ingestión de campos basura.
-*   **Analizadores:** Creación de `analizador_pro` (con filtro `asciifolding`) para búsquedas insensibles a tildes.
+### Modelado y Análisis de Texto
+Se ha optimizado el mapeo (`_mapping`) en las plantillas de índice para mejorar la experiencia de búsqueda en español:
 
-### Ciclo de Vida del Dato (ILM)
-Se implementó la política `politica_logs_semanal` para los logs de scraping:
-1.  **Fase Hot:** Escritura activa.
-2.  **Fase Delete:** Borrado automático a los **30 días** para optimizar el almacenamiento en disco.
+*   **Analizador Español (`spanish`):** Aplicado a campos de texto largo como `overview` y `title`.
+    *   *Función:* Realiza *stemming* (raíz de las palabras) y eliminación de *stopwords*. Esto permite que una búsqueda de "corriendo" encuentre resultados que contengan "correr", o que "película de acción" funcione aunque el usuario busque "peliculas accion".
+*   **Analizador Custom (`analizador_pro`):** Mantenido para nombres propios, aplicando `asciifolding` (ignorar tildes) y `lowercase`.
 
-## 3. Pipelines de Ingesta (ETL con Logstash)
+## 3. Estrategia de Ingesta Unificada (ETL)
 
-La ingesta se centraliza en la **VM 2** mediante Logstash.
+Se ha refactorizado el proceso de ingestión para simplificar el mantenimiento y mejorar la calidad de los datos.
 
-### A. Carga Histórica (CSV)
-Pipeline para la ingesta masiva de la base de datos de películas (1980-2024).
-*   **Transformaciones:**
-    *   `mutate/split`: Convierte cadenas de texto en arrays (Géneros, Actores).
-    *   `mutate/remove_field`: Elimina metadatos de sistema (`host`, `event`) para cumplir con el mapping estricto.
+### A. Script Maestro (`scraper_master.py`)
+En lugar de mantener múltiples scripts dispersos, se ha unificado la lógica de extracción en un solo **Script Maestro**.
+*   **Modo Histórico:** Capaz de descargar el catálogo completo desde los años 80.
+*   **Modo Semanal (Cron):** Se ejecuta automáticamente para buscar solo las novedades de la última semana (Lunes a Lunes).
+*   **Beneficio:** Centraliza la lógica de conexión a la API de TMDb y el manejo de errores en un solo punto.
 
-### B. Ingesta Continua (Scraping Automatizado)
-Sistema para mantener la base de datos actualizada.
-1.  **Script Python:** `scraper_semanal.py` calcula dinámicamente la fecha actual y descarga estrenos de los últimos 7 días.
-2.  **Orquestación:** **Cron Job** configurado para ejecutar el script cada lunes a las 09:00 AM.
-3.  **Pipeline Logstash:** Detecta nuevos archivos CSV y utiliza el plugin **Grok** para validar y parsear la fecha de estreno.
-4.  **Indexación:** Utiliza índices dinámicos basados en la fecha: `log-scrapping-%{+YYYY.MM.dd}`.
+### B. Pipeline de Logstash y Limpieza de Datos
+El pipeline de Logstash se ha robustecido para manejar inconsistencias en los archivos CSV de origen:
+
+*   **Limpieza de Columnas Fantasma:** Se detectó que algunos CSVs generaban columnas erróneas (ej: `column15`) debido a comas dentro de los textos. Se aplicaron filtros `mutate/remove_field` para eliminar estrictamente cualquier columna que no pertenezca al esquema oficial.
+*   **Normalización:** Conversión de tipos de datos y separación de arrays (`genre_names`, `cast_names`) antes de la indexación.
 
 ## 4. Monitorización y Observabilidad
 
-Se implementó una arquitectura de monitorización centralizada desde la **VM 3**.
+La monitorización se realiza de forma centralizada desde la **VM 3** mediante Metricbeat con configuración `scope: cluster`.
 
-*   **Metricbeat:** Configurado con `scope: cluster` y el módulo `xpack`. Esto permite que un solo agente recolecte métricas de salud (CPU, JVM Heap, Disco) de los **3 nodos** remotamente.
-*   **Visualización (Kibana):**
-    *   Habilitación de **Stack Monitoring**.
-    *   Creación de Dashboards operativos con gráficos de rendimiento.
-*   **Alertas:** Configuración de reglas de umbral para notificar si la CPU de cualquier nodo supera el 80% (requirió generación de claves de encriptación en Kibana).
+### Sistema de Alertas (Alerting)
+Se ha configurado una regla crítica en Kibana para vigilar la salud de los recursos, priorizando la Memoria RAM sobre la CPU, dado que Elasticsearch es intensivo en memoria Java (JVM).
+
+*   **Regla:** "High RAM Usage Warning".
+*   **Condición:** Si el uso de **Memoria RAM** del sistema o la JVM Heap supera el **90%** en cualquiera de los nodos.
+*   **Acción:** Registro inmediato en el log del servidor (o índice de alertas) para notificar la necesidad de escalar recursos o revisar Garbage Collection.
+
+---
+
+### Resumen de Mejoras Implementadas
+
+| Área | Estado Anterior | Estado Actual (Mejorado) |
+| :--- | :--- | :--- |
+| **Ingesta** | Scripts separados dispersos | **`scraper_master.py`** unificado |
+| **Calidad de Datos** | Columnas sucias (`column15`) | **Limpieza automática** en Logstash |
+| **Búsqueda** | Coincidencia exacta | **Analizador Español** (Semántico/Gramatical) |
+| **Seguridad** | Usuario `elastic` genérico | **API Keys independientes** por servicio |
+| **Alertas** | CPU > 80% | **RAM > 90%** (Métrica más crítica para Java) |
