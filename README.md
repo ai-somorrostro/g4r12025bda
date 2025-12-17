@@ -9,9 +9,9 @@ Se ha desplegado un clúster de **Elasticsearch** sobre **3 Máquinas Virtuales*
 ### Seguridad: Gestión Granular de API Keys
 Para cumplir con el principio de mínimo privilegio, se ha eliminado el uso del superusuario `elastic` en los servicios, implementando **IDs y API Keys independientes** para cada componente:
 
-*   **🔑 Key `writer_logstash`:** Exclusiva para el pipeline de Logstash. Solo tiene permisos de escritura (`create`, `write`) e indexación sobre `peliculas-csv` y `log-scrapping-*`.
-*   **🔑 Key `reader_streamlit`:** Exclusiva para la aplicación frontend. Solo tiene permisos de lectura (`read`, `search`) sobre los índices de datos.
-*   **🔑 Key `writer_scripts`:** Exclusiva para los scripts de Python que cargan vectores, permitiendo la gestión de índices específicos de IA.
+*   **Key `writer_logstash`:** Exclusiva para el pipeline de Logstash. Solo tiene permisos de escritura (`create`, `write`) e indexación sobre `peliculas-csv` y `log-scrapping-*`.
+*   **Key `reader_streamlit`:** Exclusiva para la aplicación frontend. Solo tiene permisos de lectura (`read`, `search`) sobre los índices de datos.
+*   **Key `writer_scripts`:** Exclusiva para los scripts de Python que cargan vectores, permitiendo la gestión de índices específicos de IA.
 
 ## 2. Gestión del Dato (Elasticsearch)
 
