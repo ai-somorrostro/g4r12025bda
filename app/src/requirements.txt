@@ -1,7 +1,8 @@
-streamlit
-elasticsearch
-openai
-python-dotenv
-sentence-transformers
-requests
-pandas
+# VALIDACION: [Issue #10] REPRODUCIBILIDAD: Se fijan las versiones para evitar fallos por actualizaciones incompatibles.
+streamlit==1.31.0
+elasticsearch==8.12.0
+openai==1.12.0
+python-dotenv==1.0.1
+sentence-transformers==2.3.1
+requests==2.31.0
+pandas==2.1.4
