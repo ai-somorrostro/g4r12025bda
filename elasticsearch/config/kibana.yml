@@ -185,13 +185,15 @@ server.host: "0.0.0.0"
 
 # This section was automatically generated during setup.
 elasticsearch.hosts: ["https://192.199.1.38:9200", "https://192.199.1.40:9200", "https://192.199.1.54:9200"]
-elasticsearch.serviceAccountToken: AAEAAWVsYXN0aWMva2liYW5hL2Vucm9sbC1wcm9jZXNzLXRva2VuLTE3NjQxNDI2NDgwNTg6RkVlMktzd3BRaldqMHFQUnM0WGtIUQ
+# VALIDACION: [Issue #4] SEGURIDAD: Se sustituyen los secretos hardcodeados por variables de entorno [VAR-04 a VAR-07].
+# Esto evita que tokens de infraestructura queden expuestos en el repositorio.
+elasticsearch.serviceAccountToken: ${ELASTICSEARCH_SERVICE_TOKEN}
 elasticsearch.ssl.certificateAuthorities: [/home/g4/kibana-9.2.0/data/ca_1764142649283.crt]
 xpack.fleet.outputs: [{id: fleet-default-output, name: default, is_default: true, is_default_monitoring: true, type: elasticsearch, hosts: [https://192.199.1.38:9200], ca_trusted_fingerprint: de583d6c37b1c7468f126980d18b1680fc99abd48d5099844057027d1bf5ace3}]
 monitoring.ui.ccs.enabled: false
-xpack.encryptedSavedObjects.encryptionKey: 315a1592da3cc1703d46b154e9d75fce
-xpack.reporting.encryptionKey: 7906bd0fde71e006bd7405a46bd408df
-xpack.security.encryptionKey: c0560cbb900681fc2484f6507f297938
+xpack.encryptedSavedObjects.encryptionKey: ${XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY}
+xpack.reporting.encryptionKey: ${XPACK_REPORTING_ENCRYPTIONKEY}
+xpack.security.encryptionKey: ${XPACK_SECURITY_ENCRYPTIONKEY}
 
 logging.root.level: info
 logging.loggers:
